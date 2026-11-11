@@ -9,6 +9,7 @@ tray menu.
 - Change wallpaper when Windows starts, at regular intervals, or on demand.
 - Browse a randomized list with Next and Previous, with wraparound.
 - Include images from subfolders.
+- Keep a list of wallpaper folders and switch between them from the tray menu or the Image Folders window.
 - Discover added and removed images before every wallpaper change.
 - Pause automatic changes while keeping manual navigation available.
 - Customize hotkeys and refresh intervals.
@@ -48,8 +49,20 @@ settings can be changed through the tray menu. Manual INI edits require a restar
 
 - `Interval` is in minutes: `0.5` means 30 seconds; `0` disables automatic changes.
 - `ImageDir` can be an absolute path or a path relative to the application folder.
+- `Presets` is a pipe-separated list of wallpaper folders offered in the tray menu.
 - `Intervals` sets the comma-separated list of intervals shown in the tray menu.
 - `HotkeyNext`, `HotkeyPrev`, and `HotkeysEnabled` control keyboard shortcuts.
+
+### Folder presets
+
+`Image Folders` in the tray menu lists the folders in `Presets` and remembers
+which one is active. Switch folders with one click, or choose `Manage Folders...`
+to open a window with Switch, Add Current, Add Folder, and Remove. Double-clicking
+a folder in that window switches to it as well.
+
+Switching folders happens immediately: the new folder starts at its first image,
+the refresh interval restarts, and the session's shuffle seed is kept. Presets are
+stored as absolute paths, so a folder that is moved or renamed must be added again.
 
 Images are loaded directly through the native Windows wallpaper API, without
 conversion or temporary BMP files. The old `TempDir` setting is no longer used;
@@ -61,8 +74,8 @@ Install AutoHotkey v2 and Ahk2Exe, then run `Compile.ahk` with v2. The build scr
 expects the compiler at `C:\Program Files\AutoHotkey\Compiler\Ahk2Exe.exe` and uses
 the running v2 interpreter as its compiler base.
 
-Building clears `ImageDir` and resets `ShowTraytip` in the local INI so the next
-launch prompts for an image folder. Other settings are retained.
+Building clears `ImageDir` and `Presets` and resets `ShowTraytip` in the local INI
+so the next launch prompts for an image folder. Other settings are retained.
 
 ## Release ZIP
 
@@ -72,7 +85,9 @@ An existing release ZIP is replaced only after the new archive is created.
 
 The ZIP contains `Wallpaper Randomizer.exe`, `Wallpaper Randomizer.ini`,
 `README.md`, `CHANGELOG.md`, and `LICENSE` at its top level.
-The INI comes from the local build, so review its settings before distributing.
+The INI comes from the local build, so review its settings before distributing;
+`Release.ahk` refuses to package a configuration that still contains folder paths
+in `ImageDir` or `Presets`.
 
 ## History and credits
 

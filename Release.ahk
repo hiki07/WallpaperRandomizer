@@ -6,6 +6,12 @@ exitCode := RunWait('"' A_AhkPath '" "' A_ScriptDir '\Compile.ahk"')
 if exitCode != 0
   throw Error("Compilation failed (exit code " exitCode ").")
 
+; The INI ships with the release, so it must not contain personal folder paths.
+for key in ["ImageDir", "Presets"] {
+  if IniRead("Wallpaper Randomizer.ini", "General", key, "") != ""
+    throw Error("Refusing to package: " key " still contains a folder path in Wallpaper Randomizer.ini.")
+}
+
 files := ["Wallpaper Randomizer.exe", "Wallpaper Randomizer.ini", "README.md", "CHANGELOG.md", "LICENSE"]
 sources := ""
 for name in files {

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.51 - 2026-11-10
+
+- Added a list of wallpaper folder presets, stored in the `Presets` INI setting.
+- Added an Image Folders tray submenu that switches to a preset directly and checks the active folder.
+- Added a Manage Folders window for switching, adding the current folder, adding a folder, and removing presets.
+- Switching presets takes effect immediately and keeps the current refresh interval and shuffle seed.
+- Warn instead of switching when a preset folder is missing or contains no supported images.
+- `Compile.ahk` clears `Presets` and `Release.ahk` refuses to package a configuration that still contains folder paths.
+- Verified preset parsing, duplicate folder names, ampersand escaping, menu check state, and folder switching with source checks.
+
 ## 0.50 - 2026-10-20
 
 - Use the native Windows wallpaper API instead of topng.exe; BMP, JPG, PNG, and GIF load directly, without temporary BMP conversion. Requires Windows 8 or later.

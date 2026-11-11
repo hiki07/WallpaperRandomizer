@@ -11,7 +11,7 @@ if A_IsCompiled || A_LineFile = A_ScriptFullPath {
 }
 
 class WallpaperRandomizer {
-  VersionString := "0.50"
+  VersionString := "0.51"
   NameString := "Wallpaper Randomizer"
   AuthorString := "Danny Ben Shitrit (Sector-Seven)"
   Images := []
@@ -20,6 +20,10 @@ class WallpaperRandomizer {
   InTheMiddle := false
   ShuffleSeed := Random(1, 0xFFFFFFFF)
   Loading := false
+  PresetsMenu := ""
+  PresetItems := Map()
+  PresetGui := ""
+  PresetList := ""
 
   __New(iniFile := "") {
     SetWorkingDir(A_ScriptDir)
@@ -87,6 +91,9 @@ class WallpaperRandomizer {
     if this.HotkeysEnabled
       this.HotkeySetup.Check("Enable Hotkeys")
 
+    this.PresetsMenu := Menu()
+    this.BuildPresetsMenu()
+
     tray := A_TrayMenu
     tray.Delete()
     this.NextMenuItem := "Next Wallpaper`t" GetHotkeyDisplayString(this.HotkeyNext)
@@ -105,6 +112,7 @@ class WallpaperRandomizer {
     if this.Suspended
       tray.Check("Pause")
     tray.Add()
+    tray.Add("Image Folders", this.PresetsMenu)
     tray.Add("Select Image Folder...", this.Callback("SelectFolder"))
     tray.Add("Customize Hotkeys", this.HotkeySetup)
     tray.Add("Open Configuration File...", this.Callback("OpenIni"))
@@ -149,7 +157,7 @@ class WallpaperRandomizer {
       return
     this.InTheMiddle := true
     try {
-      menuItems := ["Refresh Interval", "Pause", "About " this.NameString "...", "Select Image Folder...", "Run " this.NameString " on Startup", "Customize Hotkeys"]
+      menuItems := ["Refresh Interval", "Image Folders", "Pause", "About " this.NameString "...", "Select Image Folder...", "Run " this.NameString " on Startup", "Customize Hotkeys"]
       if this.HotkeysEnabled
         menuItems.Push(this.NextMenuItem, this.PrevMenuItem)
       for item in menuItems
@@ -253,6 +261,211 @@ class WallpaperRandomizer {
       this.Write("ShowTraytip", 1)
       Reload()
     }
+  }
+
+  ; --- Image folder presets ----------------------------------------------
+
+  GetPresets() {
+    presets := []
+    for entry in StrSplit(this.Read("Presets", ""), "|") {
+      entry := Trim(entry)
+      if entry != ""
+        presets.Push(entry)
+    }
+    return presets
+  }
+
+  SetPresets(presets) {
+    joined := ""
+    for path in presets
+      joined .= (A_Index = 1 ? "" : "|") path
+    this.Write("Presets", joined)
+  }
+
+  HasWallpapers(folder) {
+    Loop Files folder "\*.*", "FR" {
+      if RegExMatch(A_LoopFileExt, "i)^(bmp|png|jpg|gif)$")
+        return true
+    }
+    return false
+  }
+
+  ; Switch folders without restarting, so the Image Folders window stays open
+  ; and the shuffle seed and refresh interval survive.
+  SwitchPreset(path, *) {
+    path := Trim(path)
+    if !DirExist(path) {
+      MsgBox("This folder no longer exists:`n`n" path, this.NameString, 16)
+      return
+    }
+    if this.InTheMiddle || path = this.ImageDir
+      return
+    if !this.HasWallpapers(path) {
+      MsgBox("No supported wallpapers were found in:`n`n" path, this.NameString, 16)
+      return
+    }
+    this.Write("ImageDir", path)
+    this.ImageDir := path
+    this.SelectedImage := ""      ; begin at the first image of the new folder
+    this.ChangeNowForce(1)
+    this.UpdatePresetChecks()
+    if this.PresetGui
+      this.RefreshPresetList(this.PresetList)
+  }
+
+  AddCurrentPreset(*) {
+    if this.ImageDir = ""
+      return
+    presets := this.GetPresets()
+    for path in presets
+      if path = this.ImageDir
+        return
+    presets.Push(this.ImageDir)
+    this.SetPresets(presets)
+    this.BuildPresetsMenu()
+    if this.PresetGui
+      this.RefreshPresetList(this.PresetList)
+  }
+
+  AddPresetFromDialog(*) {
+    folder := DirSelect("*" this.ImageDir, 0, "Select a wallpaper folder to add to the list.")
+    if folder = ""
+      return
+    presets := this.GetPresets()
+    for path in presets
+      if path = folder
+        return
+    presets.Push(folder)
+    this.SetPresets(presets)
+    this.BuildPresetsMenu()
+    if this.PresetGui
+      this.RefreshPresetList(this.PresetList)
+  }
+
+  RemoveSelectedPreset(lv) {
+    row := lv.GetNext()
+    if !row
+      return
+    path := lv.GetText(row, 3)
+    presets := []
+    for preset in this.GetPresets()
+      if preset != path
+        presets.Push(preset)
+    this.SetPresets(presets)
+    this.BuildPresetsMenu()
+    this.RefreshPresetList(lv)
+  }
+
+  BuildPresetsMenu() {
+    this.PresetItems := Map()
+    this.PresetsMenu.Delete()
+    for path in this.GetPresets() {
+      label := this.PresetLabel(path)
+      this.PresetItems[label] := path
+      this.PresetsMenu.Add(label, this.Callback("SwitchPreset", path))
+      if path = this.ImageDir
+        this.PresetsMenu.Check(label)
+    }
+    if this.PresetItems.Count
+      this.PresetsMenu.Add()
+    this.PresetsMenu.Add("Manage Folders...", this.Callback("PresetDialog"))
+    this.PresetsMenu.Add("Add Current Folder", this.Callback("AddCurrentPreset"))
+  }
+
+  PresetLabel(path) {
+    SplitPath(path, &name)
+    if name = ""
+      name := path
+    name := StrReplace(name, "&", "&&")   ; literal ampersand, not an accelerator
+    label := name
+    suffix := 2
+    while this.PresetItems.Has(label)
+      label := name " (" suffix++ ")"
+    return label
+  }
+
+  UpdatePresetChecks() {
+    for label, path in this.PresetItems {
+      if path = this.ImageDir
+        this.PresetsMenu.Check(label)
+      else
+        this.PresetsMenu.Uncheck(label)
+    }
+  }
+
+  PresetDialog(*) {
+    if this.InTheMiddle {
+      SetTimer(this.Callback("PresetDialog"), -1000)
+      return
+    }
+    if this.PresetGui {
+      this.RefreshPresetList(this.PresetList)
+      this.PresetGui.Show()
+      return
+    }
+    app := this
+    dialog := Gui("+ToolWindow", app.NameString " - Image Folders")
+    dialog.Opt("+OwnDialogs")
+    dialog.MarginX := 10
+    dialog.MarginY := 10
+    lv := dialog.AddListView("xm w520 h200 -Multi", ["", "Name", "Folder"])
+    lv.ModifyCol(1, 20)
+    lv.ModifyCol(2, 150)
+    lv.ModifyCol(3, 330)
+    lv.OnEvent("DoubleClick", SwitchSelected)
+    dialog.AddButton("xm w96 Default", "Switch").OnEvent("Click", SwitchSelected)
+    dialog.AddButton("x+8 w96", "Add Current").OnEvent("Click", AddCurrent)
+    dialog.AddButton("x+8 w96", "Add Folder...").OnEvent("Click", AddFolder)
+    dialog.AddButton("x+8 w96", "Remove").OnEvent("Click", RemoveSelected)
+    dialog.AddButton("x+8 w96", "Close").OnEvent("Click", CloseDialog)
+    dialog.OnEvent("Close", CloseDialog)
+    dialog.OnEvent("Escape", CloseDialog)
+
+    app.PresetList := lv
+    app.PresetGui := dialog
+    app.RefreshPresetList(lv)
+    dialog.Show()
+
+    SwitchSelected(*) {
+      app.PresetSwitch(lv)
+    }
+
+    AddCurrent(*) {
+      app.AddCurrentPreset()
+    }
+
+    AddFolder(*) {
+      app.AddPresetFromDialog()
+    }
+
+    RemoveSelected(*) {
+      app.RemoveSelectedPreset(lv)
+    }
+
+    CloseDialog(*) {
+      dialog.Hide()
+    }
+  }
+
+  PresetSwitch(lv) {
+    row := lv.GetNext()
+    if !row
+      return
+    this.SwitchPreset(lv.GetText(row, 3))
+  }
+
+  RefreshPresetList(lv) {
+    lv.Delete()
+    currentRow := 0
+    for path in this.GetPresets() {
+      SplitPath(path, &name)
+      prefix := path = this.ImageDir ? ">" : ""
+      row := lv.Add("", prefix, name, path)
+      if prefix != ""
+        currentRow := row
+    }
+    if currentRow
+      lv.Modify(currentRow, "Select Focus Vis")
   }
 
   CheckStartupState() {
